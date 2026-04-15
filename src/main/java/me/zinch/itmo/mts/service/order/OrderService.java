@@ -3,7 +3,7 @@ package me.zinch.itmo.mts.service.order;
 import me.zinch.itmo.mts.domain.entity.Order;
 import me.zinch.itmo.mts.domain.enums.OrderStatus;
 import me.zinch.itmo.mts.service.order.dto.CreateOrderRequest;
-import me.zinch.itmo.mts.service.order.dto.UpdateOrderRequest;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -18,8 +18,6 @@ public interface OrderService {
     List<Order> getOrdersForUser(UUID userId);
 
     Order assignManager(UUID orderId, UUID seniorManagerId, UUID managerId);
-
-    Order editOrder(UUID orderId, UUID managerId, UpdateOrderRequest request);
 
     Order changeStatus(UUID orderId, UUID managerId, OrderStatus newStatus);
 }

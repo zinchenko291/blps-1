@@ -1,14 +1,13 @@
 package me.zinch.itmo.mts.service.auth;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
 import me.zinch.itmo.mts.domain.entity.User;
-import me.zinch.itmo.mts.domain.enums.UserRole;
 import me.zinch.itmo.mts.repository.UserRepository;
 import me.zinch.itmo.mts.service.ServiceException;
 import me.zinch.itmo.mts.web.auth.dto.LoginRequest;
 import me.zinch.itmo.mts.web.auth.dto.RegisterManagerRequest;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

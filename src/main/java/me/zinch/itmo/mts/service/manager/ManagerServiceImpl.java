@@ -1,14 +1,15 @@
 package me.zinch.itmo.mts.service.manager;
 
+import lombok.RequiredArgsConstructor;
 import me.zinch.itmo.mts.domain.entity.User;
 import me.zinch.itmo.mts.domain.enums.UserRole;
 import me.zinch.itmo.mts.repository.UserRepository;
 import me.zinch.itmo.mts.service.ServiceException;
-import java.util.List;
-import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor

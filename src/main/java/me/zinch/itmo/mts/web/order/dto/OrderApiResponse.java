@@ -1,8 +1,9 @@
 package me.zinch.itmo.mts.web.order.dto;
 
-import me.zinch.itmo.mts.domain.enums.OrderStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import me.zinch.itmo.mts.domain.enums.OrderStatus;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;

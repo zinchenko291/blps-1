@@ -1,9 +1,9 @@
 package me.zinch.itmo.mts.service.notification.ws;
 
+import lombok.RequiredArgsConstructor;
 import me.zinch.itmo.mts.service.notification.ws.event.NewOrderCreatedEvent;
 import me.zinch.itmo.mts.service.notification.ws.event.OrderAssignedEvent;
 import me.zinch.itmo.mts.service.notification.ws.event.OrderStatusChangedEvent;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;

@@ -1,12 +1,13 @@
 package me.zinch.itmo.mts.service.notification.ws;
 
-import me.zinch.itmo.mts.domain.enums.OrderStatus;
-import java.time.OffsetDateTime;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.zinch.itmo.mts.domain.enums.OrderStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
