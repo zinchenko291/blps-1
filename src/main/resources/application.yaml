@@ -32,3 +32,5 @@ yookassa:
 app:
   mail:
     from: ${APP_MAIL_FROM:no-reply@example.com}
+  web:
+    cors: ${APP_CORS_ENABLE:false}
