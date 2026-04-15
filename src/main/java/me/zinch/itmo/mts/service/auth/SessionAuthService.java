@@ -1,13 +1,14 @@
 package me.zinch.itmo.mts.service.auth;
 
-import me.zinch.itmo.mts.domain.entity.User;
-import me.zinch.itmo.mts.domain.enums.UserRole;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import me.zinch.itmo.mts.domain.entity.User;
+import me.zinch.itmo.mts.domain.enums.UserRole;
+import org.springframework.stereotype.Service;
+
 import java.util.Arrays;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.stereotype.Service;
 
 @Service
 public class SessionAuthService {
@@ -62,7 +63,7 @@ public class SessionAuthService {
 
         if (!(id instanceof String idValue) || !(login instanceof String loginValue)
                 || !(name instanceof String nameValue) || !(role instanceof String roleValue)) {
-            throw new UnauthorizedException("Invalid session");
+            throw new UnauthorizedException("Некорректная сессия");
         }
 
         return new SessionUser(

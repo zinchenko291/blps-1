@@ -1,14 +1,15 @@
 package me.zinch.itmo.mts.service.notification;
 
+import lombok.RequiredArgsConstructor;
 import me.zinch.itmo.mts.domain.entity.Order;
 import me.zinch.itmo.mts.domain.entity.OrderItem;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Service
 @RequiredArgsConstructor
