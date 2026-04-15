@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: mts
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${POSTGRES_USERNAME:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+  mail:
+    host: ${MAIL_HOST:smtp.example.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:example@example.com}
+    password: ${MAIL_PASSWORD:change-me}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+
+yookassa:
+  api-url: ${YOOKASSA_API_URL:https://api.yookassa.ru/v3}
+  shop-id: ${YOOKASSA_SHOP_ID:000000}
+  secret-key: ${YOOKASSA_SECRET_KEY:change-me}
+  capture: ${YOOKASSA_CAPTURE:true}
+  currency: ${YOOKASSA_CURRENCY:RUB}
+  return-url: ${YOOKASSA_RETURN_URL:https://example.com/payment/return}
+
+app:
+  mail:
+    from: ${APP_MAIL_FROM:no-reply@example.com}
