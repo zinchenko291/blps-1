@@ -6,8 +6,6 @@ import me.zinch.itmo.mts.domain.entity.User;
 import me.zinch.itmo.mts.domain.enums.UserRole;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
