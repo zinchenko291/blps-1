@@ -1,9 +1,11 @@
 package me.zinch.itmo.mts.web.manager.dto;
 
+import jakarta.validation.constraints.NotNull;
+
 import java.util.UUID;
 
 public record ManagerListItemResponse(
-        UUID managerId,
-        ManagerDto manager
+        @NotNull UUID managerId,
+        @NotNull ManagerDto manager
 ) {
 }
