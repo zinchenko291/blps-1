@@ -46,15 +46,6 @@ public class SessionAuthService {
         return toSessionUser(session);
     }
 
-    public SessionUser requireRole(HttpSession session, UserRole... roles) {
-        SessionUser user = requireAuthenticated(session);
-        Set<UserRole> allowedRoles = Set.copyOf(Arrays.asList(roles));
-        if (!allowedRoles.contains(user.role())) {
-            throw new ForbiddenException("Недостаточно прав");
-        }
-        return user;
-    }
-
     private SessionUser toSessionUser(HttpSession session) {
         Object id = session.getAttribute(USER_ID);
         Object login = session.getAttribute(USER_LOGIN);

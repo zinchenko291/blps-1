@@ -12,11 +12,16 @@ import me.zinch.itmo.mts.web.order.dto.ChangeOrderStatusApiRequest;
 import me.zinch.itmo.mts.web.order.dto.CreateOrderApiRequest;
 import me.zinch.itmo.mts.web.order.dto.OrderApiResponse;
 import me.zinch.itmo.mts.web.order.mapper.OrderMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -36,27 +41,60 @@ public class OrderController {
         this.sessionAuthService = sessionAuthService;
     }
 
+    @GetMapping
+    public Page<OrderApiResponse> getOrders(
+            HttpSession session,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        SessionUser user = sessionAuthService.requireAuthenticated(session);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return orderService.getOrdersForUser(user.id(), pageable).map(orderMapper::toResponse);
+    }
+
+    @GetMapping("/{orderId}")
+    public OrderApiResponse getOrderById(@PathVariable UUID orderId, HttpSession session) {
+        SessionUser user = sessionAuthService.requireAuthenticated(session);
+        return orderMapper.toResponse(orderService.getOrderForUser(user.id(), orderId));
+    }
+
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Void> createOrder(@Valid @RequestBody CreateOrderApiRequest request) {
-        orderService.createOrder(new CreateOrderRequest(
+    public ResponseEntity<OrderApiResponse> createOrder(@Valid @RequestBody CreateOrderApiRequest request) {
+        Order createdOrder = orderService.createOrder(new CreateOrderRequest(
                 request.getCustomerName(),
                 request.getPhoneNumber(),
                 request.getEmail(),
                 orderMapper.toServiceItems(request.getItems())
         ));
-        return ResponseEntity.ok().build();
+        return ResponseEntity.status(HttpStatus.CREATED).body(orderMapper.toResponse(createdOrder));
     }
 
-    @GetMapping
-    public List<OrderApiResponse> getOrders(HttpSession session) {
+    @PutMapping(value = "/{orderId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public OrderApiResponse updateOrder(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody CreateOrderApiRequest request,
+            HttpSession session
+    ) {
         SessionUser user = sessionAuthService.requireAuthenticated(session);
-        List<Order> orders = orderService.getOrdersForUser(user.id());
-        return orders.stream().map(orderMapper::toResponse).toList();
+        Order updated = orderService.updateOrder(orderId, user.id(), new CreateOrderRequest(
+                request.getCustomerName(),
+                request.getPhoneNumber(),
+                request.getEmail(),
+                orderMapper.toServiceItems(request.getItems())
+        ));
+        return orderMapper.toResponse(updated);
     }
 
-    @PostMapping("/{orderId}/manager")
+    @DeleteMapping("/{orderId}")
+    public ResponseEntity<Void> deleteOrder(@PathVariable UUID orderId, HttpSession session) {
+        SessionUser user = sessionAuthService.requireAuthenticated(session);
+        orderService.deleteOrder(orderId, user.id());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{orderId}/manager")
     public OrderApiResponse assignManager(
-            @PathVariable java.util.UUID orderId,
+            @PathVariable UUID orderId,
             @Valid @RequestBody AssignManagerApiRequest request,
             HttpSession session
     ) {
@@ -67,7 +105,7 @@ public class OrderController {
 
     @PatchMapping("/{orderId}/status")
     public OrderApiResponse changeStatus(
-            @PathVariable java.util.UUID orderId,
+            @PathVariable UUID orderId,
             @Valid @RequestBody ChangeOrderStatusApiRequest request,
             HttpSession session
     ) {
