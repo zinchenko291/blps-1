@@ -18,6 +18,8 @@ import me.zinch.itmo.mts.service.order.dto.OrderItemRequest;
 import me.zinch.itmo.mts.service.payment.CreatePaymentResult;
 import me.zinch.itmo.mts.service.payment.YooKassaPaymentService;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +37,6 @@ import java.util.UUID;
 @Transactional
 public class OrderServiceImpl implements OrderService {
 
-    private static final Sort CREATED_AT_DESC = Sort.by(Sort.Direction.DESC, "createdAt");
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
@@ -69,35 +70,58 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Order> getAllOrders() {
-        List<Order> orders = orderRepository.findAll(CREATED_AT_DESC);
-        log.debug("Loaded all orders: count={}", orders.size());
-        return orders;
+    public Order getOrderForUser(UUID userId, UUID orderId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ServiceException("Пользователь не найден: " + userId));
+        Order order = loadOrder(orderId);
+
+        if (user.getRole() == UserRole.SENIOR_MANAGER) {
+            return order;
+        }
+        if (user.getRole() == UserRole.MANAGER) {
+            assertManagedBy(order, userId);
+            return order;
+        }
+        throw new ServiceException("Пользователь должен иметь роль MANAGER или SENIOR_MANAGER");
+    }
+
+    @Override
+    public Order updateOrder(UUID orderId, UUID seniorManagerId, CreateOrderRequest request) {
+        requireRole(seniorManagerId, UserRole.SENIOR_MANAGER);
+        validateCustomer(request.customerName(), request.phoneNumber(), request.email());
+        List<OrderItemRequest> itemRequests = validateItems(request.items());
+
+        Order order = loadOrder(orderId);
+        assertStatusIsNew(order);
+        Customer customer = upsertCustomer(request.customerName(), request.phoneNumber(), request.email());
+
+        order.setCustomer(customer);
+        replaceItems(order, itemRequests);
+        order.setUpdatedAt(OffsetDateTime.now());
+        return orderRepository.save(order);
+    }
+
+    @Override
+    public void deleteOrder(UUID orderId, UUID seniorManagerId) {
+        log.info("Deleting order: orderId={}, seniorManagerId={}", orderId, seniorManagerId);
+        requireRole(seniorManagerId, UserRole.SENIOR_MANAGER);
+        Order order = loadOrder(orderId);
+        if (paymentRepository.findByOrderId(orderId).isPresent()) {
+            throw new ServiceException("Нельзя удалить заказ с созданной оплатой: " + orderId);
+        }
+        orderRepository.delete(order);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Order> getOrdersAssignedToManager(UUID managerId) {
-        requireRole(managerId, UserRole.MANAGER);
-        List<Order> orders = orderRepository.findAllByManagerId(managerId, CREATED_AT_DESC);
-        log.debug("Loaded manager orders: managerId={}, count={}", managerId, orders.size());
-        return orders;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<Order> getOrdersForUser(UUID userId) {
+    public Page<Order> getOrdersForUser(UUID userId, Pageable pageable) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ServiceException("Пользователь не найден: " + userId));
         if (user.getRole() == UserRole.SENIOR_MANAGER) {
-            List<Order> orders = orderRepository.findAll(CREATED_AT_DESC);
-            log.debug("Loaded orders for senior manager: userId={}, count={}", userId, orders.size());
-            return orders;
+            return orderRepository.findAll(pageable);
         }
         if (user.getRole() == UserRole.MANAGER) {
-            List<Order> orders = orderRepository.findAllByManagerId(userId, CREATED_AT_DESC);
-            log.debug("Loaded orders for manager: userId={}, count={}", userId, orders.size());
-            return orders;
+            return orderRepository.findAllByManagerId(userId, pageable);
         }
         throw new ServiceException("Пользователь должен иметь роль MANAGER или SENIOR_MANAGER");
     }

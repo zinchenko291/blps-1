@@ -3,19 +3,22 @@ package me.zinch.itmo.mts.service.order;
 import me.zinch.itmo.mts.domain.entity.Order;
 import me.zinch.itmo.mts.domain.enums.OrderStatus;
 import me.zinch.itmo.mts.service.order.dto.CreateOrderRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface OrderService {
 
     Order createOrder(CreateOrderRequest request);
 
-    List<Order> getAllOrders();
+    Order getOrderForUser(UUID userId, UUID orderId);
 
-    List<Order> getOrdersAssignedToManager(UUID managerId);
+    Order updateOrder(UUID orderId, UUID seniorManagerId, CreateOrderRequest request);
 
-    List<Order> getOrdersForUser(UUID userId);
+    void deleteOrder(UUID orderId, UUID seniorManagerId);
+
+    Page<Order> getOrdersForUser(UUID userId, Pageable pageable);
 
     Order assignManager(UUID orderId, UUID seniorManagerId, UUID managerId);
 
