@@ -59,7 +59,11 @@ public class OrderController {
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<OrderApiResponse> createOrder(@Valid @RequestBody CreateOrderApiRequest request) {
+    public ResponseEntity<OrderApiResponse> createOrder(
+            @Valid @RequestBody CreateOrderApiRequest request,
+            HttpSession session
+    ) {
+        sessionAuthService.requireAuthenticated(session);
         Order createdOrder = orderService.createOrder(new CreateOrderRequest(
                 request.getCustomerName(),
                 request.getPhoneNumber(),
@@ -113,4 +117,5 @@ public class OrderController {
         Order updated = orderService.changeStatus(orderId, user.id(), request.getStatus());
         return orderMapper.toResponse(updated);
     }
+
 }

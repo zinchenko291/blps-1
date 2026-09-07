@@ -1,7 +1,7 @@
 package me.zinch.itmo.mts.domain.enums;
 
 public enum UserRole {
-    ANONYMOUS_BUYER,
+    CLIENT,
     MANAGER,
     SENIOR_MANAGER
 }

@@ -4,24 +4,25 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.zinch.itmo.mts.config.YooKassaProperties;
 import me.zinch.itmo.mts.domain.entity.*;
+import me.zinch.itmo.mts.domain.payment.Payment;
 import me.zinch.itmo.mts.domain.enums.OrderStatus;
 import me.zinch.itmo.mts.domain.enums.UserRole;
 import me.zinch.itmo.mts.domain.enums.YooKassaPaymentStatus;
 import me.zinch.itmo.mts.repository.*;
+import me.zinch.itmo.mts.repository.payment.PaymentRepository;
 import me.zinch.itmo.mts.service.ServiceException;
 import me.zinch.itmo.mts.service.notification.OrderEmailService;
-import me.zinch.itmo.mts.service.notification.ws.event.NewOrderCreatedEvent;
-import me.zinch.itmo.mts.service.notification.ws.event.OrderAssignedEvent;
-import me.zinch.itmo.mts.service.notification.ws.event.OrderStatusChangedEvent;
 import me.zinch.itmo.mts.service.order.dto.CreateOrderRequest;
 import me.zinch.itmo.mts.service.order.dto.OrderItemRequest;
+import me.zinch.itmo.mts.service.order.event.OrderApprovedEvent;
 import me.zinch.itmo.mts.service.payment.CreatePaymentResult;
 import me.zinch.itmo.mts.service.payment.YooKassaPaymentService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -33,7 +34,6 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
@@ -41,139 +41,198 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository productRepository;
     private final PaymentRepository paymentRepository;
     private final UserRepository userRepository;
-    private final YooKassaPaymentService yooKassaPaymentService;
     private final OrderEmailService orderEmailService;
     private final ApplicationEventPublisher eventPublisher;
+    private final YooKassaPaymentService yooKassaPaymentService;
     private final YooKassaProperties yooKassaProperties;
+    private final TransactionTemplate jtaTransactionTemplate;
 
     @Override
+    @PreAuthorize("hasAuthority('ORDER_CREATE')")
     public Order createOrder(CreateOrderRequest request) {
-        log.info("Creating order for customer email={}", request.email());
-        validateCustomer(request.customerName(), request.phoneNumber(), request.email());
-        List<OrderItemRequest> itemRequests = validateItems(request.items());
+        Order savedOrder = jtaTransactionTemplate.execute(status -> {
+            log.info("Creating order for customer email={}", request.email());
+            validateCustomer(request.customerName(), request.phoneNumber(), request.email());
+            List<OrderItemRequest> itemRequests = validateItems(request.items());
 
-        Customer customer = upsertCustomer(request.customerName(), request.phoneNumber(), request.email());
-        Order order = new Order();
-        order.setCustomer(customer);
-        order.setStatus(OrderStatus.NEW);
-        order.setCreatedAt(OffsetDateTime.now());
-        order.setUpdatedAt(OffsetDateTime.now());
-
-        replaceItems(order, itemRequests);
-        Order savedOrder = orderRepository.save(order);
+            Customer customer = upsertCustomer(request.customerName(), request.phoneNumber(), request.email());
+            Order order = new Order();
+            order.setCustomer(customer);
+            order.setStatus(OrderStatus.NEW);
+            order.setCreatedAt(OffsetDateTime.now());
+            order.setUpdatedAt(OffsetDateTime.now());
+            replaceItems(order, itemRequests);
+            return orderRepository.save(order);
+        });
+        if (savedOrder == null) {
+            throw new ServiceException("Не удалось создать заказ");
+        }
         log.info("Order created: orderId={}, customerId={}, items={}",
                 savedOrder.getId(), savedOrder.getCustomer().getId(), savedOrder.getItems().size());
-        eventPublisher.publishEvent(new NewOrderCreatedEvent(savedOrder.getId(), savedOrder.getStatus()));
         return savedOrder;
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('ORDER_READ')")
     public Order getOrderForUser(UUID userId, UUID orderId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ServiceException("Пользователь не найден: " + userId));
-        Order order = loadOrder(orderId);
-
-        if (user.getRole() == UserRole.SENIOR_MANAGER) {
-            return order;
-        }
-        if (user.getRole() == UserRole.MANAGER) {
-            assertManagedBy(order, userId);
-            return order;
-        }
-        throw new ServiceException("Пользователь должен иметь роль MANAGER или SENIOR_MANAGER");
+        return jtaTransactionTemplate.execute(status -> {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ServiceException("Пользователь не найден: " + userId));
+            Order order = loadOrder(orderId);
+            if (user.getRole() == UserRole.SENIOR_MANAGER) return order;
+            if (user.getRole() == UserRole.MANAGER) {
+                assertManagedBy(order, userId);
+                return order;
+            }
+            throw new ServiceException("Пользователь должен иметь роль MANAGER или SENIOR_MANAGER");
+        });
     }
 
     @Override
-    public Order updateOrder(UUID orderId, UUID seniorManagerId, CreateOrderRequest request) {
-        requireRole(seniorManagerId, UserRole.SENIOR_MANAGER);
-        validateCustomer(request.customerName(), request.phoneNumber(), request.email());
-        List<OrderItemRequest> itemRequests = validateItems(request.items());
-
-        Order order = loadOrder(orderId);
-        assertStatusIsNew(order);
-        Customer customer = upsertCustomer(request.customerName(), request.phoneNumber(), request.email());
-
-        order.setCustomer(customer);
-        replaceItems(order, itemRequests);
-        order.setUpdatedAt(OffsetDateTime.now());
-        return orderRepository.save(order);
+    @PreAuthorize("hasAuthority('ORDER_UPDATE')")
+    public Order updateOrder(UUID orderId, UUID managerId, CreateOrderRequest request) {
+        return jtaTransactionTemplate.execute(status -> {
+            requireRole(managerId, UserRole.MANAGER);
+            validateCustomer(request.customerName(), request.phoneNumber(), request.email());
+            List<OrderItemRequest> itemRequests = validateItems(request.items());
+            Order order = loadOrder(orderId);
+            assertManagedBy(order, managerId);
+            assertStatusIsNew(order);
+            Customer customer = upsertCustomer(request.customerName(), request.phoneNumber(), request.email());
+            order.setCustomer(customer);
+            replaceItems(order, itemRequests);
+            order.setUpdatedAt(OffsetDateTime.now());
+            return orderRepository.save(order);
+        });
     }
 
     @Override
+    @PreAuthorize("hasAuthority('ORDER_DELETE')")
     public void deleteOrder(UUID orderId, UUID seniorManagerId) {
         log.info("Deleting order: orderId={}, seniorManagerId={}", orderId, seniorManagerId);
-        requireRole(seniorManagerId, UserRole.SENIOR_MANAGER);
-        Order order = loadOrder(orderId);
-        if (paymentRepository.findByOrderId(orderId).isPresent()) {
-            throw new ServiceException("Нельзя удалить заказ с созданной оплатой: " + orderId);
-        }
-        orderRepository.delete(order);
+        jtaTransactionTemplate.executeWithoutResult(status -> {
+            requireRole(seniorManagerId, UserRole.SENIOR_MANAGER);
+            if (paymentRepository.findByOrderId(orderId).isPresent()) {
+                throw new ServiceException("Нельзя удалить заказ с созданной оплатой: " + orderId);
+            }
+            orderRepository.delete(loadOrder(orderId));
+        });
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('ORDER_LIST_OWN') or hasAuthority('ORDER_LIST_ALL')")
     public Page<Order> getOrdersForUser(UUID userId, Pageable pageable) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ServiceException("Пользователь не найден: " + userId));
-        if (user.getRole() == UserRole.SENIOR_MANAGER) {
-            return orderRepository.findAll(pageable);
-        }
-        if (user.getRole() == UserRole.MANAGER) {
-            return orderRepository.findAllByManagerId(userId, pageable);
-        }
-        throw new ServiceException("Пользователь должен иметь роль MANAGER или SENIOR_MANAGER");
+        return jtaTransactionTemplate.execute(status -> {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ServiceException("Пользователь не найден: " + userId));
+            if (user.getRole() == UserRole.SENIOR_MANAGER) return orderRepository.findAll(pageable);
+            if (user.getRole() == UserRole.MANAGER) return orderRepository.findAllByManagerId(userId, pageable);
+            throw new ServiceException("Пользователь должен иметь роль MANAGER или SENIOR_MANAGER");
+        });
     }
 
     @Override
+    @PreAuthorize("hasAuthority('ORDER_ASSIGN_MANAGER')")
     public Order assignManager(UUID orderId, UUID seniorManagerId, UUID managerId) {
-        log.info("Assigning manager to order: orderId={}, seniorManagerId={}, managerId={}",
-                orderId, seniorManagerId, managerId);
-        requireRole(seniorManagerId, UserRole.SENIOR_MANAGER);
-        User manager = requireRole(managerId, UserRole.MANAGER);
-        Order order = loadOrder(orderId);
-
-        order.setManager(manager);
-        order.setUpdatedAt(OffsetDateTime.now());
-        Order savedOrder = orderRepository.save(order);
+        Order savedOrder = jtaTransactionTemplate.execute(status -> {
+            log.info("Assigning manager to order: orderId={}, seniorManagerId={}, managerId={}",
+                    orderId, seniorManagerId, managerId);
+            requireRole(seniorManagerId, UserRole.SENIOR_MANAGER);
+            User manager = requireRole(managerId, UserRole.MANAGER);
+            Order order = loadOrder(orderId);
+            order.setManager(manager);
+            order.setUpdatedAt(OffsetDateTime.now());
+            return orderRepository.save(order);
+        });
+        if (savedOrder == null) {
+            throw new ServiceException("Не удалось назначить менеджера для заказа: " + orderId);
+        }
         log.info("Manager assigned to order: orderId={}, managerId={}", savedOrder.getId(), managerId);
-        eventPublisher.publishEvent(new OrderAssignedEvent(
-                savedOrder.getId(),
-                manager.getId(),
-                savedOrder.getStatus()
-        ));
         return savedOrder;
     }
 
     @Override
+    @PreAuthorize("hasAuthority('ORDER_CHANGE_STATUS')")
     public Order changeStatus(UUID orderId, UUID managerId, OrderStatus newStatus) {
         log.info("Changing order status: orderId={}, managerId={}, newStatus={}",
                 orderId, managerId, newStatus);
         requireRole(managerId, UserRole.MANAGER);
-        Order order = loadOrder(orderId);
-        assertManagedBy(order, managerId);
-        assertStatusIsNew(order);
-
-        if (newStatus != OrderStatus.REJECTED && newStatus != OrderStatus.PLACED) {
+        if (newStatus != OrderStatus.REJECTED && newStatus != OrderStatus.APPROVED) {
             throw new ServiceException("Недопустимое состояние для этого заказа");
         }
 
-        order.setStatus(newStatus);
-        order.setUpdatedAt(OffsetDateTime.now());
-        Order savedOrder = orderRepository.save(order);
+        Order savedOrder = jtaTransactionTemplate.execute(status -> {
+            Order order = loadOrder(orderId);
+            assertManagedBy(order, managerId);
+            assertStatusIsNew(order);
 
-        if (newStatus == OrderStatus.PLACED) {
-            createPaymentAndSendEmail(savedOrder);
+            order.setStatus(newStatus);
+            order.setUpdatedAt(OffsetDateTime.now());
+            Order updatedOrder = orderRepository.save(order);
+
+            return updatedOrder;
+        });
+
+        if (savedOrder == null) {
+            throw new ServiceException("Не удалось изменить статус заказа: " + orderId);
         }
 
         log.info("Order status changed: orderId={}, managerId={}, status={}",
                 savedOrder.getId(), managerId, newStatus);
-        eventPublisher.publishEvent(new OrderStatusChangedEvent(
-                savedOrder.getId(),
-                savedOrder.getManager() == null ? null : savedOrder.getManager().getId(),
-                newStatus
-        ));
+        if (newStatus == OrderStatus.APPROVED) {
+            eventPublisher.publishEvent(new OrderApprovedEvent(savedOrder.getId()));
+        }
         return savedOrder;
+    }
+
+    /**
+     * The payment provider call is deliberately made before the XA transaction: an HTTP call cannot
+     * participate in two-phase commit. The resulting payment record and the CRM status change are
+     * then committed (or rolled back) together by Atomikos.
+     */
+    @Override
+    public Order requestPaymentLink(UUID orderId) {
+        Order orderForPayment = loadOrder(orderId);
+        assertStatusIsApproved(orderForPayment);
+
+        BigDecimal totalAmount = calculateTotalAmount(orderForPayment);
+        String idempotenceKey = UUID.randomUUID().toString();
+        log.info("Requesting payment link: orderId={}, amount={}, currency={}",
+                orderId, totalAmount, yooKassaProperties.currency());
+        CreatePaymentResult paymentResult = yooKassaPaymentService.createPayment(
+                orderForPayment, totalAmount, idempotenceKey);
+
+        Order placedOrder = jtaTransactionTemplate.execute(status -> {
+            Order order = loadOrder(orderId);
+            assertStatusIsApproved(order);
+            if (paymentRepository.findByOrderId(orderId).isPresent()) {
+                throw new ServiceException("Оплата для заказа уже существует: " + orderId);
+            }
+
+            Payment payment = new Payment();
+            payment.setOrderId(orderId);
+            payment.setYooKassaPaymentId(paymentResult.yooKassaPaymentId());
+            payment.setIdempotenceKey(idempotenceKey);
+            payment.setAmount(totalAmount);
+            payment.setCurrency(yooKassaProperties.currency());
+            payment.setStatus(mapYooKassaStatus(paymentResult.rawStatus()));
+            payment.setConfirmationUrl(paymentResult.confirmationUrl());
+            payment.setReturnUrl(yooKassaProperties.returnUrl());
+            payment.setCreatedAt(OffsetDateTime.now());
+            paymentRepository.save(payment); // enlist mts_payments XA resource
+
+            order.setStatus(OrderStatus.PLACED);
+            order.setUpdatedAt(OffsetDateTime.now());
+            return orderRepository.saveAndFlush(order); // enlist mts_crm XA resource before 2PC
+        });
+
+        if (placedOrder == null) {
+            throw new ServiceException("Не удалось создать платёж для заказа: " + orderId);
+        }
+        orderEmailService.sendOrderPlacedEmail(placedOrder, paymentResult.confirmationUrl(), totalAmount);
+        log.info("Payment and order committed in XA transaction: orderId={}, paymentId={}",
+                orderId, paymentResult.yooKassaPaymentId());
+        return placedOrder;
     }
 
     private void replaceItems(Order order, List<OrderItemRequest> itemRequests) {
@@ -224,33 +283,10 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void createPaymentAndSendEmail(Order order) {
-        if (paymentRepository.findByOrderId(order.getId()).isPresent()) {
-            throw new ServiceException("Оплата для заказа уже существует: " + order.getId());
+    private void assertStatusIsApproved(Order order) {
+        if (order.getStatus() != OrderStatus.APPROVED) {
+            throw new ServiceException("Платёжную ссылку можно запросить только для заказа в статусе APPROVED");
         }
-
-        BigDecimal totalAmount = calculateTotalAmount(order);
-        String idempotenceKey = UUID.randomUUID().toString();
-        log.info("Creating payment for order: orderId={}, amount={}, currency={}",
-                order.getId(), totalAmount, yooKassaProperties.currency());
-        CreatePaymentResult result = yooKassaPaymentService.createPayment(order, totalAmount, idempotenceKey);
-
-        Payment payment = new Payment();
-        payment.setOrder(order);
-        payment.setYooKassaPaymentId(result.yooKassaPaymentId());
-        payment.setIdempotenceKey(idempotenceKey);
-        payment.setAmount(totalAmount);
-        payment.setCurrency(yooKassaProperties.currency());
-        payment.setStatus(mapYooKassaStatus(result.rawStatus()));
-        payment.setConfirmationUrl(result.confirmationUrl());
-        payment.setReturnUrl(yooKassaProperties.returnUrl());
-        payment.setCreatedAt(OffsetDateTime.now());
-        paymentRepository.save(payment);
-        log.info("Payment created for order: orderId={}, yooKassaPaymentId={}",
-                order.getId(), result.yooKassaPaymentId());
-
-        orderEmailService.sendOrderPlacedEmail(order, result.confirmationUrl(), totalAmount);
-        log.info("Order payment email sent: orderId={}, email={}", order.getId(), order.getCustomer().getEmail());
     }
 
     private BigDecimal calculateTotalAmount(Order order) {
@@ -286,10 +322,10 @@ public class OrderServiceImpl implements OrderService {
 
         List<OrderItemRequest> validatedItems = new ArrayList<>(items.size());
         for (OrderItemRequest item : items) {
-            if (item == null || item.productId() == null) {
+            if (item == null) {
                 throw new ServiceException("Каждый элемент заказа должен содержать productId");
             }
-            if (item.quantity() == null || item.quantity() <= 0) {
+            if (item.quantity() <= 0) {
                 throw new ServiceException("Количество должно быть положительным");
             }
             validatedItems.add(item);

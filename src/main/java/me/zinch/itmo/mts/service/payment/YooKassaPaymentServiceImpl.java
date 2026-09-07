@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import me.zinch.itmo.mts.config.YooKassaProperties;
 import me.zinch.itmo.mts.domain.entity.Order;
 import me.zinch.itmo.mts.service.ServiceException;
-import org.jspecify.annotations.NonNull;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -20,7 +19,7 @@ public class YooKassaPaymentServiceImpl implements YooKassaPaymentService {
 
     private static final ParameterizedTypeReference<Map<String, Object>> MAP_RESPONSE_TYPE =
             new ParameterizedTypeReference<>() {
-            };
+    };
 
     private final RestClient.Builder restClientBuilder;
     private final YooKassaProperties properties;
@@ -59,7 +58,7 @@ public class YooKassaPaymentServiceImpl implements YooKassaPaymentService {
         return new CreatePaymentResult(paymentId, confirmationUrl, status);
     }
 
-    private @NonNull Map<String, Object> buildPayload(Order order, BigDecimal amount) {
+    private Map<String, Object> buildPayload(Order order, BigDecimal amount) {
         Map<String, Object> amountNode = Map.of(
                 "value", amount.setScale(2).toPlainString(),
                 "currency", properties.currency()

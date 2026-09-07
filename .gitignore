@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+.env
+scripts
+.direnv
+docs
+report

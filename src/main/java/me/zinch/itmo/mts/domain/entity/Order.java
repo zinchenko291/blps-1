@@ -38,8 +38,9 @@ public class Order {
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
 }

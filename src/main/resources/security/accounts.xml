@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<accounts>
+    <!-- Lab accounts. Password for each account: password -->
+    <account id="10000000-0000-0000-0000-000000000001" login="client" name="Тестовый клиент" role="CLIENT" passwordHash="$2a$10$rjF/eJTKed.p7IkP7fQUneTwsdexh1cyrFGTZt31WNC8zkuKPaAyW"/>
+    <account id="10000000-0000-0000-0000-000000000002" login="manager" name="Тестовый менеджер" role="MANAGER" passwordHash="$2a$10$rjF/eJTKed.p7IkP7fQUneTwsdexh1cyrFGTZt31WNC8zkuKPaAyW"/>
+    <account id="10000000-0000-0000-0000-000000000003" login="senior" name="Старший менеджер" role="SENIOR_MANAGER" passwordHash="$2a$10$rjF/eJTKed.p7IkP7fQUneTwsdexh1cyrFGTZt31WNC8zkuKPaAyW"/>
+</accounts>

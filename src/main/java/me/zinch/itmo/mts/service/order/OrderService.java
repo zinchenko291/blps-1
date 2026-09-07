@@ -23,4 +23,6 @@ public interface OrderService {
     Order assignManager(UUID orderId, UUID seniorManagerId, UUID managerId);
 
     Order changeStatus(UUID orderId, UUID managerId, OrderStatus newStatus);
+
+    Order requestPaymentLink(UUID orderId);
 }

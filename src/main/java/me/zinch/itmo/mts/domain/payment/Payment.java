@@ -1,4 +1,4 @@
-package me.zinch.itmo.mts.domain.entity;
+package me.zinch.itmo.mts.domain.payment;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,14 +21,13 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @OneToOne(optional = false)
-    @JoinColumn(name = "order_id", nullable = false, unique = true)
-    private Order order;
+    @Column(name = "order_id", nullable = false, unique = true)
+    private UUID orderId;
 
-    @Column(unique = true, length = 64)
+    @Column(name = "yoo_kassa_payment_id", unique = true, length = 64)
     private String yooKassaPaymentId;
 
-    @Column(nullable = false, unique = true, length = 64)
+    @Column(name = "idempotence_key", nullable = false, unique = true, length = 64)
     private String idempotenceKey;
 
     @Column(nullable = false, precision = 12, scale = 2)
@@ -41,12 +40,12 @@ public class Payment {
     @Column(nullable = false, length = 32)
     private YooKassaPaymentStatus status;
 
-    @Column(length = 1024)
+    @Column(name = "confirmation_url", length = 1024)
     private String confirmationUrl;
 
-    @Column(length = 1024)
+    @Column(name = "return_url", length = 1024)
     private String returnUrl;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 }

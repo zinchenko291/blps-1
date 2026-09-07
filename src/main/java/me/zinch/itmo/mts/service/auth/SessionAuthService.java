@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpSession;
 import me.zinch.itmo.mts.domain.entity.User;
 import me.zinch.itmo.mts.domain.enums.UserRole;
 import org.springframework.stereotype.Service;
+import org.springframework.security.core.context.SecurityContextHolder;
+import me.zinch.itmo.mts.security.SecurityAccount;
 
 import java.util.UUID;
 
@@ -38,6 +40,11 @@ public class SessionAuthService {
     }
 
     public SessionUser requireAuthenticated(HttpSession session) {
+        Object principal = SecurityContextHolder.getContext().getAuthentication() == null ? null
+                : SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof SecurityAccount account) {
+            return new SessionUser(account.id(), account.login(), account.name(), account.role());
+        }
         if (session == null) {
             throw new UnauthorizedException("Требуется авторизация");
         }

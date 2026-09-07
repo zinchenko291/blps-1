@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 0f9640a4311481256172499ae1f01f6ba23c246166f68c1baf9d14c4a65ce5bc
-      POSTGRES_DATABASE: mts
+      POSTGRES_DB: mts_crm
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"

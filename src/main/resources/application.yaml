@@ -2,14 +2,16 @@ spring:
   application:
     name: mts
   datasource:
-    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/postgres}
-    username: ${POSTGRES_USERNAME:postgres}
-    password: ${POSTGRES_PASSWORD:postgres}
+    url: ${CRM_POSTGRES_URL:jdbc:postgresql://localhost:5432/mts_crm}
+    username: ${CRM_POSTGRES_USERNAME:postgres}
+    password: ${CRM_POSTGRES_PASSWORD:0f9640a4311481256172499ae1f01f6ba23c246166f68c1baf9d14c4a65ce5bc}
     driver-class-name: org.postgresql.Driver
   jpa:
     show-sql: true
     hibernate:
       ddl-auto: update
+    properties:
+      hibernate.transaction.jta.platform: org.hibernate.engine.transaction.jta.platform.internal.AtomikosJtaPlatform
   mail:
     host: ${MAIL_HOST:smtp.example.com}
     port: ${MAIL_PORT:587}
@@ -31,6 +33,14 @@ yookassa:
   return-url: ${YOOKASSA_RETURN_URL:https://example.com/payment/return}
 
 app:
+  security:
+    jwt-secret: ${JWT_SECRET:change-this-lab-secret-to-at-least-32-characters}
+    jwt-ttl-minutes: ${JWT_TTL_MINUTES:60}
+  datasource:
+    payments:
+      url: ${PAYMENTS_POSTGRES_URL:jdbc:postgresql://localhost:5432/mts_payments}
+      username: ${PAYMENTS_POSTGRES_USERNAME:postgres}
+      password: ${PAYMENTS_POSTGRES_PASSWORD:0f9640a4311481256172499ae1f01f6ba23c246166f68c1baf9d14c4a65ce5bc}
   mail:
     from: ${APP_MAIL_FROM:no-reply@example.com}
   web:

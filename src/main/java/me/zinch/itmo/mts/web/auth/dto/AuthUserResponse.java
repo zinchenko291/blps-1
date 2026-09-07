@@ -9,6 +9,7 @@ public record AuthUserResponse(
         @NotNull UUID id,
         @NotNull String login,
         @NotNull String name,
-        @NotNull UserRole role
+        @NotNull UserRole role,
+        String accessToken
 ) {
 }
